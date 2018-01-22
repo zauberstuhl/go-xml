@@ -310,7 +310,8 @@ func (d *Decoder) Token() (Token, error) {
 				d.pushNs(a.Name.Local, v, ok)
 				d.ns[a.Name.Local] = a.Value
 			}
-			if a.Name.Space == "" && a.Name.Local == xmlnsPrefix {
+			if a.Name.Space == "" && (a.Name.Local == xmlnsPrefix ||
+					strings.Index(a.Name.Local, ":") > 0) {
 				// Default space for untagged names
 				v, ok := d.ns[""]
 				d.pushNs("", v, ok)
@@ -1166,6 +1167,10 @@ func (d *Decoder) nsname() (name Name, ok bool) {
 	if i < 0 {
 		name.Local = s
 	} else {
+		if d.nextByte == 0x0020 || d.nextByte == 0x003E {
+			name.Local = s
+			return name, true
+		}
 		name.Space = s[0:i]
 		name.Local = s[i+1:]
 	}

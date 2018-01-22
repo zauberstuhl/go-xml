@@ -619,6 +619,10 @@ func (p *printer) marshalAttr(start *StartElement, name Name, val reflect.Value)
 	if b != nil {
 		s = string(b)
 	}
+	j := strings.Index(start.Name.Local, ":")
+	if j > 0 && start.Name.Local[0:j] == name.Local {
+		name.Local = "xmlns:" + name.Local
+	}
 	start.Attr = append(start.Attr, Attr{name, s})
 	return nil
 }

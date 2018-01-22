@@ -1,0 +1,101 @@
+From eb84a7026da6065bb8c0e17dfaef2f6e58f8fefd Mon Sep 17 00:00:00 2001
+From: Lukas Matt <lukas@zauberstuhl.de>
+Date: Sat, 20 Jan 2018 16:52:55 +0100
+Subject: [PATCH] Add basic namespace prefix support to encoding/xml
+
+related to golang/go#9519
+---
+ src/encoding/xml/marshal.go   | 4 ++++
+ src/encoding/xml/read_test.go | 2 +-
+ src/encoding/xml/xml.go       | 7 ++++++-
+ src/encoding/xml/xml_test.go  | 8 ++++----
+ 4 files changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/src/encoding/xml/marshal.go b/src/encoding/xml/marshal.go
+index d393d0610b..1d66442034 100644
+--- a/src/encoding/xml/marshal.go
++++ b/src/encoding/xml/marshal.go
+@@ -619,6 +619,10 @@ func (p *printer) marshalAttr(start *StartElement, name Name, val reflect.Value)
+ 	if b != nil {
+ 		s = string(b)
+ 	}
++	j := strings.Index(start.Name.Local, ":")
++	if j > 0 && start.Name.Local[0:j] == name.Local {
++		name.Local = "xmlns:" + name.Local
++	}
+ 	start.Attr = append(start.Attr, Attr{name, s})
+ 	return nil
+ }
+diff --git a/src/encoding/xml/read_test.go b/src/encoding/xml/read_test.go
+index 8c2e70fa22..55156724ec 100644
+--- a/src/encoding/xml/read_test.go
++++ b/src/encoding/xml/read_test.go
+@@ -431,7 +431,7 @@ var tables = []struct {
+ 			`<f:table>world</f:table>` +
+ 			`<h:table>hello</h:table>` +
+ 			`</Tables>`,
+-		tab: Tables{"hello", "world"},
++		tab: Tables{},
+ 	},
+ 	{
+ 		xml: `<Tables>` +
+diff --git a/src/encoding/xml/xml.go b/src/encoding/xml/xml.go
+index f408623de5..9d87c83d64 100644
+--- a/src/encoding/xml/xml.go
++++ b/src/encoding/xml/xml.go
+@@ -310,7 +310,8 @@ func (d *Decoder) Token() (Token, error) {
+ 				d.pushNs(a.Name.Local, v, ok)
+ 				d.ns[a.Name.Local] = a.Value
+ 			}
+-			if a.Name.Space == "" && a.Name.Local == xmlnsPrefix {
++			if a.Name.Space == "" && (a.Name.Local == xmlnsPrefix ||
++					strings.Index(a.Name.Local, ":") > 0) {
+ 				// Default space for untagged names
+ 				v, ok := d.ns[""]
+ 				d.pushNs("", v, ok)
+@@ -1166,6 +1167,10 @@ func (d *Decoder) nsname() (name Name, ok bool) {
+ 	if i < 0 {
+ 		name.Local = s
+ 	} else {
++		if d.nextByte == 0x0020 || d.nextByte == 0x003E {
++			name.Local = s
++			return name, true
++		}
+ 		name.Space = s[0:i]
+ 		name.Local = s[i+1:]
+ 	}
+diff --git a/src/encoding/xml/xml_test.go b/src/encoding/xml/xml_test.go
+index 7a3511d583..7abbeaefa6 100644
+--- a/src/encoding/xml/xml_test.go
++++ b/src/encoding/xml/xml_test.go
+@@ -60,11 +60,11 @@ var rawTokens = []Token{
+ 	CharData("\n  "),
+ 	EndElement{Name{"", "outer"}},
+ 	CharData("\n  "),
+-	StartElement{Name{"tag", "name"}, []Attr{}},
++	StartElement{Name{"", "tag:name"}, []Attr{}},
+ 	CharData("\n    "),
+ 	CharData("Some text here."),
+ 	CharData("\n  "),
+-	EndElement{Name{"tag", "name"}},
++	EndElement{Name{"", "tag:name"}},
+ 	CharData("\n"),
+ 	EndElement{Name{"", "body"}},
+ 	Comment(" missing final newline "),
+@@ -97,11 +97,11 @@ var cookedTokens = []Token{
+ 	CharData("\n  "),
+ 	EndElement{Name{"ns2", "outer"}},
+ 	CharData("\n  "),
+-	StartElement{Name{"ns3", "name"}, []Attr{}},
++	StartElement{Name{"ns2", "tag:name"}, []Attr{}},
+ 	CharData("\n    "),
+ 	CharData("Some text here."),
+ 	CharData("\n  "),
+-	EndElement{Name{"ns3", "name"}},
++	EndElement{Name{"ns2", "tag:name"}},
+ 	CharData("\n"),
+ 	EndElement{Name{"ns2", "body"}},
+ 	Comment(" missing final newline "),
+-- 
+2.15.1
+
